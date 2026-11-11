@@ -45,7 +45,7 @@ class VastClient:
             }
         )
 
-    def search_model(self, gpu_name: str, limit: int = 50) -> list[dict[str, Any]]:
+    def search_model(self, gpu_name: str, limit: int = 50, progress=None) -> list[dict[str, Any]]:
         if gpu_name not in {"RTX_3090", "RTX_4090"}:
             raise ValueError("Only RTX_3090 and RTX_4090 are allowed")
         if not 1 <= limit <= 100:
@@ -70,16 +70,25 @@ class VastClient:
             "allocated_storage": 100,
             "order": [["dph_total", "asc"]],
         }
+        if progress:
+            progress(f"[{gpu_name}] Sending read-only offer query to Vast.ai.")
         response = self.session.post(
             f"{API_BASE}/bundles",
             json=body,
-            timeout=30,
+            timeout=(10, 30),
         )
+        if progress:
+            progress(f"[{gpu_name}] Vast.ai replied with HTTP {response.status_code}.")
+        if not response.ok:
+            detail = response.text[:1200].replace("\n", " ")
+            raise RuntimeError(f"Vast API HTTP {response.status_code}: {detail}")
         response.raise_for_status()
         payload = response.json()
         offers = payload.get("offers", []) if isinstance(payload, dict) else []
         if not isinstance(offers, list):
-            raise RuntimeError("Vast returned an unexpected offer response")
+            raise RuntimeError(f"Vast returned an unexpected response shape: {str(payload)[:800]}")
+        if progress:
+            progress(f"[{gpu_name}] Received {len(offers)} candidate offer(s).")
         return offers
 
     @staticmethod
@@ -161,6 +170,7 @@ class VastClient:
         runtime_minutes: float = 18,
         ingress_gb: float = 45,
         egress_gb: float = 1,
+        progress=None,
     ) -> list[OfferQuote]:
         if budget_usd <= 0 or budget_usd > 3.0:
             raise ValueError("Budget must be greater than $0 and no more than $3")
@@ -174,8 +184,18 @@ class VastClient:
         # Prefer a 3090; only search the 4090 fallback when no qualifying
         # 3090 offer survives all known-cost checks.
         for gpu_name in ("RTX_3090", "RTX_4090"):
+            if progress:
+                progress(f"Starting {gpu_name} search.")
             quotes = []
-            for offer in self.search_model(gpu_name):
+            offers = self.search_model(gpu_name, progress=progress)
+            for index, offer in enumerate(offers, start=1):
+                if progress:
+                    progress(
+                        f"[{gpu_name}] Inspecting offer {index}/{len(offers)} "
+                        f"(id={offer.get('id', 'unknown')}, VRAM={offer.get('gpu_ram', 'unknown')} MiB, "
+                        f"hourly rate={offer.get('dph_total', 'unknown')}, "
+                        f"reliability={offer.get('reliability', 'unknown')})."
+                    )
                 quote = self.quote_offer(
                     offer,
                     disk_gb=disk_gb,
@@ -186,6 +206,16 @@ class VastClient:
                 if quote and quote.hourly_rate_usd <= max_hourly_usd:
                     if quote.estimated_total_usd <= budget_usd:
                         quotes.append(quote)
+                        if progress:
+                            progress(f"[{gpu_name}] Offer {quote.offer_id} PASSES; total={quote.estimated_total_usd:.4f} USD.")
+                    elif progress:
+                        progress(f"[{gpu_name}] Offer {offer.get('id', 'unknown')} rejected: total {quote.estimated_total_usd:.4f} USD exceeds budget.")
+                elif progress:
+                    progress(f"[{gpu_name}] Offer {offer.get('id', 'unknown')} rejected: missing/invalid required fields or hourly cap exceeded.")
             if quotes:
+                if progress:
+                    progress(f"Selected {len(quotes)} qualifying {gpu_name} offer(s).")
                 return sorted(quotes, key=lambda q: (q.estimated_total_usd, -q.reliability))
+            if progress:
+                progress(f"No {gpu_name} offers passed; checking fallback GPU.")
         return []
