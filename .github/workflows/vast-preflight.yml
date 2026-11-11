@@ -2,6 +2,12 @@ name: NEO VIDEO GEN — Vast.ai Offer Preflight
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/vast-preflight.yml'
+      - 'neo_video_gen/vast_client.py'
+      - 'scripts/check_vast_offers.py'
 
 permissions:
   contents: read
