@@ -58,6 +58,7 @@ class VastClient:
             "type": "ondemand",
             "gpu_name": {"eq": gpu_name},
             "num_gpus": {"eq": 1},
+            "gpu_frac": {"eq": 1},
             "gpu_ram": {"gte": 24000},  # Vast returns GPU RAM in MB.
             "reliability": {"gte": 0.99},
             "verified": {"eq": True},
@@ -65,6 +66,7 @@ class VastClient:
             "rented": {"eq": False},
             "disk_space": {"gte": 100},
             "dph_total": {"lte": 0.30},
+            "duration": {"gte": 1080},
             "allocated_storage": 100,
             "order": [["dph_total", "asc"]],
         }
@@ -109,6 +111,7 @@ class VastClient:
             )
             rentable = offer["rentable"] is True
             num_gpus = int(offer["num_gpus"])
+            gpu_fraction = float(offer["gpu_frac"])
             disk_space = float(offer["disk_space"])
         except (KeyError, TypeError, ValueError):
             return None
@@ -117,7 +120,7 @@ class VastClient:
             return None
         if gpu_ram_gb < 24 or reliability < 0.99 or not verified or not rentable:
             return None
-        if num_gpus != 1 or disk_space < disk_gb:
+        if num_gpus != 1 or gpu_fraction < 1.0 or disk_space < disk_gb:
             return None
         if min(total_hourly, base_hourly, storage_per_gb_month, ingress_per_gb, egress_per_gb) < 0:
             return None
