@@ -95,5 +95,7 @@ def test_search_uses_current_vast_post_bundles_contract():
     assert session.url.endswith("/bundles")
     assert session.body["gpu_name"] == {"eq": "RTX_3090"}
     assert session.body["gpu_ram"] == {"gte": 24000}
+    assert session.body["gpu_frac"] == {"eq": 1}
+    assert session.body["duration"] == {"gte": 1080}
     assert session.body["allocated_storage"] == 100
     assert session.body["type"] == "ondemand"
