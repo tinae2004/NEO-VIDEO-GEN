@@ -170,12 +170,18 @@ def generate_video(
                         destination = Path("outputs") / f"neo_{prompt_id[:8]}{suffix}"
                         destination.parent.mkdir(parents=True, exist_ok=True)
                         destination.write_bytes(media.content)
-                        if require_audio and not probe_audio_stream(destination):
-                            destination.unlink(missing_ok=True)
-                            raise RuntimeError(
-                                "The generated file has no audio stream. Check the LTX audio "
-                                "conditioning and video-combine/save node in the workflow."
-                            )
+                        if require_audio:
+                            try:
+                                audio_found = probe_audio_stream(destination)
+                            except Exception:
+                                destination.unlink(missing_ok=True)
+                                raise
+                            if not audio_found:
+                                destination.unlink(missing_ok=True)
+                                raise RuntimeError(
+                                    "The generated file has no audio stream. Check the LTX audio "
+                                    "conditioning and video-combine/save node in the workflow."
+                                )
                         return str(destination.resolve())
 
                 if isinstance(status, dict) and status.get("completed"):
