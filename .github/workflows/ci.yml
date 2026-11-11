@@ -24,6 +24,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
       - name: Compile
-        run: python -m compileall -q app.py neo_video_gen tests
+        run: python -m compileall -q app.py neo_video_gen tests scripts
       - name: Test
         run: pytest -q
