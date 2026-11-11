@@ -21,7 +21,8 @@ class OfferQuote:
     gpu_ram_gb: float
     reliability: float
     verified: bool
-    hourly_compute_usd: float
+    hourly_rate_usd: float
+    compute_usd: float
     storage_usd: float
     ingress_usd: float
     egress_usd: float
@@ -111,7 +112,8 @@ class VastClient:
             gpu_ram_gb=gpu_ram,
             reliability=reliability,
             verified=verified,
-            hourly_compute_usd=round(compute_cost, 4),
+            hourly_rate_usd=round(hourly, 4),
+            compute_usd=round(compute_cost, 4),
             storage_usd=round(storage_cost, 4),
             ingress_usd=round(ingress_cost, 4),
             egress_usd=round(egress_cost, 4),
