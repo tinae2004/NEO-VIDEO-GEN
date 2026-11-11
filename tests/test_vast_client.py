@@ -15,7 +15,7 @@ def eligible_offer(**overrides):
         "rentable": True,
         "num_gpus": 1,
         "disk_space": 200,
-        "dph_total": 0.20,
+        "dph": 0.20,
         "storage_cost": 0.10,
         "inet_down_cost": 0.001,
         "inet_up_cost": 0.002,
@@ -27,7 +27,7 @@ def eligible_offer(**overrides):
 def test_quote_accounts_for_compute_storage_and_bandwidth():
     quote = VastClient.quote_offer(eligible_offer())
     assert quote is not None
-    assert quote.estimated_total_usd > quote.hourly_compute_usd
+    assert quote.estimated_total_usd > quote.compute_usd
     assert quote.estimated_total_usd < 3.0
 
 
@@ -35,6 +35,7 @@ def test_quote_accounts_for_compute_storage_and_bandwidth():
     "overrides",
     [
         {"gpu_name": "Tesla_T4"},
+        {"gpu_name": "RTX 3080"},
         {"verified": False},
         {"rentable": False},
         {"reliability": 0.90},
@@ -45,6 +46,13 @@ def test_quote_accounts_for_compute_storage_and_bandwidth():
 )
 def test_rejects_ineligible_or_unpriced_offer(overrides):
     assert VastClient.quote_offer(eligible_offer(**overrides)) is None
+
+
+def test_normalizes_space_in_gpu_model_and_uses_documented_dph_field():
+    quote = VastClient.quote_offer(eligible_offer(gpu_name="RTX 3090"))
+    assert quote is not None
+    assert quote.hourly_rate_usd == 0.20
+    assert quote.compute_usd == pytest.approx(0.06)
 
 
 def test_budget_and_runtime_hard_limits():
