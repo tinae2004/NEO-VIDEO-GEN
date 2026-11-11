@@ -30,7 +30,7 @@ Open `http://localhost:7860`.
 5. Optionally set the image loader node ID and upload a start image.
 6. Keep **Require and verify an audio track** enabled for audiovisual generation. The ComfyUI host must have `ffprobe` available.
 
-The client refuses to report success as audiovisual when an audio stream is absent or cannot be checked. The exact workflow still needs to be validated against the installed LTX-2.3 nodes; the application cannot infer arbitrary workflow node IDs.
+The client refuses to report success as audiovisual when an audio stream is absent or cannot be checked. `ffprobe` must be installed on the NEO app runtime (not just the remote ComfyUI server). The root `packages.txt` installs FFmpeg for Hugging Face Spaces builds. The exact workflow still needs to be validated against the installed LTX-2.3 nodes; the application cannot infer arbitrary workflow node IDs.
 
 ## Vast.ai preflight
 
