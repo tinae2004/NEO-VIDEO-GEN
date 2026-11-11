@@ -1,0 +1,27 @@
+name: NEO VIDEO GEN — Vast.ai Offer Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neo-video-gen-vast-preflight
+  cancel-in-progress: true
+
+jobs:
+  offer-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install preflight dependency
+        run: python -m pip install requests
+      - name: Search and calculate safe offers (read-only)
+        env:
+          VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
+        run: python -m scripts.check_vast_offers
