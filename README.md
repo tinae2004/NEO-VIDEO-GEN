@@ -41,7 +41,7 @@ To configure it:
 2. Add a repository secret named `VAST_API_KEY`. Never paste the key into source files, issue comments, or chat.
 3. Open **Actions → NEO VIDEO GEN — Vast.ai Offer Preflight → Run workflow**.
 
-The preflight is read-only: it never rents or creates an instance. It rejects offers that do not provide the required GPU model, 24GB VRAM, 99% reliability, verified/rentable status, at least 100GB disk, and all required price fields. It estimates 18 minutes of compute, 100GB storage, 45GB ingress, 1GB egress, and a $0.25 contingency; it enforces a $0.30/hour and $3 total estimate ceiling.
+The preflight is read-only: it never rents or creates an instance. It rejects offers that do not provide the required GPU model, at least 24GB VRAM (Vast reports memory in MiB), a full non-shared GPU slice, 99% reliability, verified/rentable status, an offer duration of at least 18 minutes, at least 100GB disk, and all required price fields. It estimates 18 minutes of compute, 100GB storage, 45GB ingress, 1GB egress, and a $0.25 contingency; it enforces a $0.30/hour and $3 total estimate ceiling.
 
 **Important:** bandwidth is usage-based, and the estimate assumes the stated data transfer allowance. A runtime overrun, larger model download, unplanned output transfer, or provider-side billing adjustment can exceed an estimate. The preflight does not guarantee a hard account-wide spending limit.
 
