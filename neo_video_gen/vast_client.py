@@ -5,7 +5,6 @@ cost component required for the user's budget estimate is missing.
 """
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -39,16 +38,39 @@ class VastClient:
             raise ValueError("VAST_API_KEY is required")
         self.session = session or requests.Session()
         self.session.headers.update(
-            {"Authorization": f"Bearer {api_key.strip()}", "Accept": "application/json"}
+            {
+                "Authorization": f"Bearer {api_key.strip()}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
         )
 
     def search_model(self, gpu_name: str, limit: int = 50) -> list[dict[str, Any]]:
         if gpu_name not in {"RTX_3090", "RTX_4090"}:
             raise ValueError("Only RTX_3090 and RTX_4090 are allowed")
-        query = json.dumps({"gpu_name": gpu_name, "num_gpus": 1, "limit": limit})
-        response = self.session.get(
-            f"{API_BASE}/bundles/",
-            params={"q": query},
+        if not 1 <= limit <= 100:
+            raise ValueError("Offer search limit must be between 1 and 100")
+
+        # Vast's current REST API uses POST /bundles with operator/value filters.
+        # allocated_storage makes dph_total reflect the disk size used in our quote.
+        body = {
+            "limit": limit,
+            "type": "ondemand",
+            "gpu_name": {"eq": gpu_name},
+            "num_gpus": {"eq": 1},
+            "gpu_ram": {"gte": 24000},  # Vast returns GPU RAM in MB.
+            "reliability": {"gte": 0.99},
+            "verified": {"eq": True},
+            "rentable": {"eq": True},
+            "rented": {"eq": False},
+            "disk_space": {"gte": 100},
+            "dph_total": {"lte": 0.30},
+            "allocated_storage": 100,
+            "order": [["dph_total", "asc"]],
+        }
+        response = self.session.post(
+            f"{API_BASE}/bundles",
+            json=body,
             timeout=30,
         )
         response.raise_for_status()
@@ -68,40 +90,46 @@ class VastClient:
         egress_gb: float = 1,
         contingency_usd: float = 0.25,
     ) -> OfferQuote | None:
-        """Return a quote only when every requested price and eligibility field is known."""
+        """Quote only if identity, eligibility and all variable price fields are known."""
         try:
             gpu_name = str(offer.get("gpu_name", "")).replace(" ", "_")
-            gpu_ram = float(offer["gpu_ram"])
+            gpu_ram_mb = float(offer["gpu_ram"])
+            gpu_ram_gb = gpu_ram_mb / 1024.0
             reliability = float(offer["reliability"])
-            hourly_value = offer.get("dph_total")
-            if hourly_value is None:
-                hourly_value = offer["dph"]
-            hourly = float(hourly_value)
+            total_hourly = float(offer["dph_total"])
+            base_hourly = float(offer["dph_base"])
             storage_per_gb_month = float(offer["storage_cost"])
             ingress_per_gb = float(offer["inet_down_cost"])
             egress_per_gb = float(offer["inet_up_cost"])
             offer_id = int(offer["id"])
-            verified = offer["verified"] is True
+            verified = (
+                offer.get("verified") is True
+                or offer.get("verification") == "verified"
+                or offer.get("vericode") == 1
+            )
             rentable = offer["rentable"] is True
-            num_gpus = int(offer.get("num_gpus", 1))
-            disk_space = float(offer.get("disk_space", 0))
+            num_gpus = int(offer["num_gpus"])
+            disk_space = float(offer["disk_space"])
         except (KeyError, TypeError, ValueError):
             return None
 
         if gpu_name not in {"RTX_3090", "RTX_4090"}:
             return None
-        if gpu_ram < 24 or reliability < 0.99 or not verified or not rentable:
+        if gpu_ram_gb < 24 or reliability < 0.99 or not verified or not rentable:
             return None
         if num_gpus != 1 or disk_space < disk_gb:
             return None
-        if min(hourly, storage_per_gb_month, ingress_per_gb, egress_per_gb) < 0:
+        if min(total_hourly, base_hourly, storage_per_gb_month, ingress_per_gb, egress_per_gb) < 0:
             return None
 
         hours = runtime_minutes / 60.0
-        # Vast's storage field is documented as $/GB/month. 730 hours is a
-        # conservative conventional month divisor for a short runtime estimate.
-        compute_cost = hourly * hours
-        storage_cost = storage_per_gb_month * disk_gb * hours / 730.0
+        storage_hourly = storage_per_gb_month * disk_gb / 730.0
+        # dph_total is the provider's total hourly rate for the requested
+        # allocated_storage. Use the larger of that figure and the separately
+        # reconstructed compute+storage rate to avoid understating cost.
+        compute_hourly = max(base_hourly, total_hourly - storage_hourly)
+        compute_cost = compute_hourly * hours
+        storage_cost = storage_hourly * hours
         ingress_cost = ingress_per_gb * ingress_gb
         egress_cost = egress_per_gb * egress_gb
         total = compute_cost + storage_cost + ingress_cost + egress_cost + contingency_usd
@@ -109,10 +137,10 @@ class VastClient:
         return OfferQuote(
             offer_id=offer_id,
             gpu_name=gpu_name,
-            gpu_ram_gb=gpu_ram,
+            gpu_ram_gb=round(gpu_ram_gb, 2),
             reliability=reliability,
             verified=verified,
-            hourly_rate_usd=round(hourly, 4),
+            hourly_rate_usd=round(total_hourly, 4),
             compute_usd=round(compute_cost, 4),
             storage_usd=round(storage_cost, 4),
             ingress_usd=round(ingress_cost, 4),
@@ -152,7 +180,7 @@ class VastClient:
                     ingress_gb=ingress_gb,
                     egress_gb=egress_gb,
                 )
-                if quote and float(offer.get("dph_total") if offer.get("dph_total") is not None else offer.get("dph", 999999)) <= max_hourly_usd:
+                if quote and quote.hourly_rate_usd <= max_hourly_usd:
                     if quote.estimated_total_usd <= budget_usd:
                         quotes.append(quote)
             if quotes:
