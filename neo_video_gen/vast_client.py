@@ -69,10 +69,13 @@ class VastClient:
     ) -> OfferQuote | None:
         """Return a quote only when every requested price and eligibility field is known."""
         try:
-            gpu_name = str(offer.get("gpu_name", ""))
+            gpu_name = str(offer.get("gpu_name", "")).replace(" ", "_")
             gpu_ram = float(offer["gpu_ram"])
             reliability = float(offer["reliability"])
-            hourly = float(offer.get("dph_total", offer["dph"]))
+            hourly_value = offer.get("dph_total")
+            if hourly_value is None:
+                hourly_value = offer["dph"]
+            hourly = float(hourly_value)
             storage_per_gb_month = float(offer["storage_cost"])
             ingress_per_gb = float(offer["inet_down_cost"])
             egress_per_gb = float(offer["inet_up_cost"])
@@ -147,7 +150,7 @@ class VastClient:
                     ingress_gb=ingress_gb,
                     egress_gb=egress_gb,
                 )
-                if quote and float(offer.get("dph_total", offer.get("dph", 999999))) <= max_hourly_usd:
+                if quote and float(offer.get("dph_total") if offer.get("dph_total") is not None else offer.get("dph", 999999)) <= max_hourly_usd:
                     if quote.estimated_total_usd <= budget_usd:
                         quotes.append(quote)
             if quotes:
