@@ -6,10 +6,10 @@ import gradio as gr
 from neo_video_gen.comfy_client import generate_video
 
 
-def generate(endpoint, workflow_file, prompt, prompt_node, image, image_node, timeout):
+def generate(endpoint, workflow_file, prompt, prompt_node, image, image_node, timeout, require_audio):
     if not workflow_file:
         raise gr.Error("Upload a ComfyUI API-format workflow JSON.")
-    if not prompt.strip():
+    if not prompt or not prompt.strip():
         raise gr.Error("Enter a video prompt.")
     try:
         output = generate_video(
@@ -20,10 +20,11 @@ def generate(endpoint, workflow_file, prompt, prompt_node, image, image_node, ti
             str(image) if image else None,
             str(image_node).strip() if image_node else None,
             int(timeout),
+            bool(require_audio),
         )
     except Exception as exc:
         raise gr.Error(f"Generation failed: {exc}") from exc
-    return output, f"Completed: {output}"
+    return output, f"Completed and saved: {output}"
 
 
 with gr.Blocks(title="NEO VIDEO GEN", theme=gr.themes.Soft()) as demo:
@@ -37,11 +38,19 @@ with gr.Blocks(title="NEO VIDEO GEN", theme=gr.themes.Soft()) as demo:
         image_node = gr.Textbox(label="Image loader node ID (optional)")
     image = gr.Image(label="Start image (optional)", type="filepath")
     timeout = gr.Slider(label="Timeout (seconds)", minimum=60, maximum=3600, value=1800, step=60)
+    require_audio = gr.Checkbox(label="Require and verify an audio track", value=True)
     button = gr.Button("Generate video", variant="primary")
     result = gr.Video(label="Generated video")
     status = gr.Textbox(label="Job status", interactive=False)
-    button.click(generate, [endpoint, workflow, prompt, prompt_node, image, image_node, timeout], [result, status])
-    gr.Markdown("---\nGPU rental is not enabled in this initial clean build. Connect a tested GPU worker separately.")
+    button.click(
+        generate,
+        [endpoint, workflow, prompt, prompt_node, image, image_node, timeout, require_audio],
+        [result, status],
+    )
+    gr.Markdown(
+        "---\nAudio verification uses ffprobe. GPU rental is a separate controlled workflow; "
+        "this console never silently rents compute."
+    )
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860)
