@@ -43,9 +43,9 @@ def main() -> int:
             for q in payload:
                 summary.write(
                     f"| {q['gpu_name']} | {q['offer_id']} | "
-                    f"\${q['compute_usd']:.4f} | \${q['storage_usd']:.4f} | "
-                    f"\${q['ingress_usd']:.4f} | \${q['egress_usd']:.4f} | "
-                    f"\${q['estimated_total_usd']:.4f} |\n"
+                    f"${q['compute_usd']:.4f} | ${q['storage_usd']:.4f} | "
+                    f"${q['ingress_usd']:.4f} | ${q['egress_usd']:.4f} | "
+                    f"${q['estimated_total_usd']:.4f} |\n"
                 )
             summary.write("\n**Read-only check: no instance was created.**\n")
     log("READ-ONLY CHECK COMPLETE: no instance was created.")
