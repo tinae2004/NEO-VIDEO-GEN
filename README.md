@@ -1,14 +1,17 @@
 # NEO VIDEO GEN
 
-A clean LTX-2.3 audiovisual generation console. This repository deliberately excludes the legacy FastFrame/Blender training pipeline.
+An inference-only LTX-2.3 audiovisual generation project. The active application does not train or fine-tune model weights.
 
 ## Current architecture
 
-- Gradio generation console for a running ComfyUI server
+- Gradio generation console for ComfyUI
 - ComfyUI API workflow submission and output retrieval
-- Audio-track verification with `ffprobe` enabled by default
-- Read-only Vast.ai offer discovery and conservative cost preflight
-- Manually triggered CPU-only CI and a separate read-only Vast preflight workflow
+- Audio-track verification with `ffprobe`
+- Read-only Vast marketplace preflight
+- Separate, manually triggered Vast.ai rental + LTX-2.3 inference workflow
+- DeepSeek failure diagnostics for provisioning and generation errors
+
+The previous NEO-LTX-2.3 project is preserved under `legacy/NEO-LTX-2.3/` for reference. Its Blender/data/training code is archived and is not connected to the active video-generation path.
 
 ## Run locally
 
@@ -21,30 +24,47 @@ python app.py
 
 Open `http://localhost:7860`.
 
-## Generate
+## Generate through an existing ComfyUI server
 
-1. Start a ComfyUI server with a compatible LTX-2.3 workflow and model files installed.
-2. Export the workflow as API-format JSON.
-3. Enter the ComfyUI URL and upload the JSON.
-4. Set the actual prompt node ID from that workflow.
-5. Optionally set the image loader node ID and upload a start image.
-6. Keep **Require and verify an audio track** enabled for audiovisual generation. The ComfyUI host must have `ffprobe` available.
+1. Start ComfyUI with compatible LTX-2.3 nodes and distilled model assets installed.
+2. Export a workflow as **API-format JSON**.
+3. Enter the ComfyUI URL and upload the JSON in the Gradio app.
+4. Set the actual prompt node ID from the workflow.
+5. Optionally select the image loader node and upload a start image.
+6. Keep audio verification enabled for audiovisual output.
 
-The client refuses to report success as audiovisual when an audio stream is absent or cannot be checked. `ffprobe` must be installed on the NEO app runtime (not just the remote ComfyUI server). The root `packages.txt` installs FFmpeg for Hugging Face Spaces builds. The exact workflow still needs to be validated against the installed LTX-2.3 nodes; the application cannot infer arbitrary workflow node IDs.
+## Generate using a rented Vast GPU
 
-## Vast.ai preflight
+The workflow `.github/workflows/ltx-vast-generate.yml` is the inference-only rental path. It reuses the previous NEO rental lifecycle:
 
-The workflow `.github/workflows/vast-preflight.yml` searches current RTX 3090 offers first and RTX 4090 only as a fallback. It uses the current Vast REST API with a bearer token stored in the repository Actions secret `VAST_API_KEY`.
+1. Register a temporary SSH key and search fresh on-demand Vast offers.
+2. Recheck GPU, verification, rentable state, full allocation, reliability, bandwidth and total cost locally.
+3. Try multiple offers and refresh stale offer IDs.
+4. Rent one instance, wait for running status, obtain `vastai ssh-url`, and retry SSH plus `nvidia-smi`.
+5. Start/check ComfyUI, open an SSH tunnel, submit one LTX video workflow, and collect the output.
+6. On failure, send redacted logs to the DeepSeek diagnostic adviser.
+7. Destroy the instance in a `finally` cleanup path.
 
-To configure it:
-1. In GitHub, open **Settings → Secrets and variables → Actions**.
-2. Add a repository secret named `VAST_API_KEY`. Never paste the key into source files, issue comments, or chat.
-3. Open **Actions → NEO VIDEO GEN — Vast.ai Offer Preflight → Run workflow**.
+This workflow runs only when manually dispatched from GitHub Actions; ordinary code pushes do not rent GPUs.
 
-The preflight is read-only: it never rents or creates an instance. It rejects offers that do not provide the required GPU model, at least 24GB VRAM (Vast reports memory in MiB), a full non-shared GPU slice, 99% reliability, verified/rentable status, an offer duration of at least 18 minutes, at least 100GB disk, and all required price fields. It estimates 18 minutes of compute, 100GB storage, 45GB ingress, 1GB egress, and a $0.25 contingency; it enforces a $0.30/hour and $3 total estimate ceiling.
+### Required preparation
 
-**Important:** bandwidth is usage-based, and the estimate assumes the stated data transfer allowance. A runtime overrun, larger model download, unplanned output transfer, or provider-side billing adjustment can exceed an estimate. The preflight does not guarantee a hard account-wide spending limit.
+- Add `VAST_API_KEY` as a repository Actions secret.
+- Add `DEEPSEEK_API_KEY` as a repository Actions secret to enable the failure adviser. DeepSeek is advisory only; it does not modify code, change spending limits, or operate Vast infrastructure.
+- Commit the actual ComfyUI **API-format** workflow JSON as `workflows/ltx23_api.json` (or supply another committed path when dispatching).
+- The workflow must use actual node IDs from that JSON.
+- ComfyUI, LTX-2.3 nodes and compatible distilled model files must already be installed on the selected Vast image or attached persistent volume. The rental path does not download multi-tens-of-GB weights during the short metered runtime.
+- For a persistent volume, supply its existing ID and its actual hourly cost. It is attached at `/workspace`.
+- The default ComfyUI root is `/workspace/ComfyUI`.
 
-## GPU rental status
+### Hardware and spend safeguards
 
-No GPU is rented automatically. A real rental workflow must first identify the exact ComfyUI/LTX-2.3 container/template, its API workflow JSON, model dependencies, boot time, and cleanup behavior. Only then should a metered instance creation step be added. Stopping a Vast instance does not end storage charges; the instance must be destroyed when finished.
+The automatic 22B inference path requires a full RTX GPU with at least 48GB VRAM and excludes Tesla. Quantized LTX-2.3 measurements still exceed a 24GB card's physical VRAM for the usual paths; a 24GB RTX 3090 experiment requires a separately verified offload/quantization workflow.
+
+The code refuses a budget above **$3 total**, hourly price above **$0.30**, runtime above **18 minutes**, VRAM below **48GB**, non-RTX/Tesla cards, partial GPU allocations, unreliable, unverified or currently non-rentable offers, and offers with missing required network price fields. A 25% compute reserve and $0.25 contingency are included. The volume hourly charge must be supplied accurately. These calculations are estimates, not a guarantee of the provider's final bill.
+
+## Validation status
+
+The latest GitHub Actions safety test run passed Python compilation and all 7 inference-offer unit tests. This proves the local filters behave as tested; it does **not** prove a live Vast rental or finished video generation. No GPU was rented by the unit tests.
+
+The first real inference run still requires the actual API workflow JSON and a prepared ComfyUI/LTX model cache. The older read-only Vast preflight remains separate and does not create instances.
