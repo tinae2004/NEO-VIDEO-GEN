@@ -23,7 +23,7 @@ API_BASE = "https://console.vast.ai/api/v0"
 MAX_BUDGET_USD = 3.00
 MAX_HOURLY_USD = 0.30
 MAX_RUNTIME_MINUTES = 18
-MIN_GPU_VRAM_GB = 48.0
+MIN_GPU_VRAM_GB = 24.0
 DEFAULT_DISK_GB = 100
 VAST_IMAGE = "vastai/comfy"
 
@@ -156,7 +156,7 @@ def eligible_offers(offers: list[dict[str, Any]], *, progress=None, **limits) ->
                      + ": VRAM=" + str(quote.gpu_vram_gb) + "GB, hourly=$"
                      + str(quote.hourly_usd) + ", estimated total=$" + str(quote.total_usd))
 
-    preferred = ("RTX A6000", "RTX 6000 ADA", "RTX PRO 6000")
+    preferred = ("RTX 3090", "RTX 4090", "RTX A6000", "RTX 6000 ADA", "RTX PRO 6000")
     def sort_key(q: OfferQuote):
         normalized = q.gpu_name.upper().replace("_", " ")
         rank = next((i for i, item in enumerate(preferred) if item in normalized), len(preferred))
@@ -360,9 +360,11 @@ def _start_comfyui(ssh_base: list[str], env: dict[str, str], root: str) -> None:
         "mkdir -p \"$ROOT/custom_nodes\"; cd \"$ROOT/custom_nodes\"; "
         "clone_if_missing(){ if [ ! -d \"$1/.git\" ]; then git clone --depth 1 \"$2\" \"$1\"; fi; }; "
         "clone_if_missing ComfyUI-LTXVideo https://github.com/Lightricks/ComfyUI-LTXVideo.git; "
+        "clone_if_missing ComfyUI-GGUF https://github.com/city96/ComfyUI-GGUF.git; "
         "clone_if_missing ClownSampler_Beta_Standalone https://github.com/RiverSide71/ClownSampler_Beta_Standalone.git; "
         "clone_if_missing comfyui-workflow-to-api-converter-endpoint https://github.com/SethRobinson/comfyui-workflow-to-api-converter-endpoint.git; "
         "if [ -f ComfyUI-LTXVideo/requirements.txt ]; then python3 -m pip install -r ComfyUI-LTXVideo/requirements.txt; fi; "
+        "if [ -f ComfyUI-GGUF/requirements.txt ]; then python3 -m pip install -r ComfyUI-GGUF/requirements.txt; fi; "
         "if curl -fsS http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then "
         "pkill -f 'python3 main.py.*--port 8188' || true; sleep 3; fi; "
         "cd \"$ROOT\"; nohup python3 main.py --listen 127.0.0.1 --port 8188 "
@@ -371,9 +373,7 @@ def _start_comfyui(ssh_base: list[str], env: dict[str, str], root: str) -> None:
         "if curl -fsS http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then break; fi; sleep 2; done; "
         "curl -fsS http://127.0.0.1:8188/system_stats >/dev/null || "
         "{ tail -n 120 /workspace/neo-comfyui.log 2>/dev/null || true; exit 32; }; "
-        "curl -fsS http://127.0.0.1:8188/workflow/convert >/dev/null || "
-        "{ echo 'ComfyUI UI-to-API converter route is missing'; tail -n 120 /workspace/neo-comfyui.log; exit 33; }; "
-        "echo 'ComfyUI API and workflow converter are ready'"
+        "echo 'ComfyUI API is ready; workflow converter will be verified by actual POST conversion'"
     )
     _remote(ssh_base, script, env, 360)
 
@@ -460,7 +460,7 @@ def run_ltx_inference(
     if not 0 < runtime_minutes <= MAX_RUNTIME_MINUTES:
         raise ValueError("Runtime must be greater than zero and no more than 18 minutes")
     if min_vram_gb < MIN_GPU_VRAM_GB:
-        raise ValueError("Automatic LTX-2.3 22B inference requires a 48GB-class GPU target")
+        raise ValueError("LTX-2.3 GGUF 24GB path requires at least 24GB VRAM")
     if disk_gb < DEFAULT_DISK_GB or model_download_gb < 0 or output_upload_gb < 0 or volume_hourly_usd < 0:
         raise ValueError("Disk, bandwidth or volume pricing input is invalid")
     workflow = validate_api_workflow(
@@ -491,7 +491,7 @@ def run_ltx_inference(
 
     try:
         log("MODE: LTX-2.3 VIDEO INFERENCE ONLY. No model training.")
-        log("GPU policy: verified/rentable on-demand full RTX GPU, 48GB+; Tesla excluded.")
+        log("GPU policy: verified/rentable on-demand full RTX GPU, 24GB+; Tesla excluded. RTX 3090/4090 preferred.")
         log("Caps: budget=$" + str(budget_usd) + ", hourly=$" + str(max_hourly_usd)
             + ", runtime=" + str(runtime_minutes) + " minutes.")
         _ssh_agent(env)
