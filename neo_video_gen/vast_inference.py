@@ -420,6 +420,11 @@ def _convert_ui_workflow(endpoint: str, workflow_json: str, prompt_node_id: str,
     graph = json.loads(workflow_json)
     if not isinstance(graph, dict) or not isinstance(graph.get("nodes"), list):
         return workflow_json
+    # The upstream graph includes an optional LoadImage branch. Bypass that
+    # node for pure T2V so no example.png asset is required on the rented host.
+    for node in graph.get("nodes", []):
+        if str(node.get("id")) == str(image_node_id or "2004") and node.get("type") == "LoadImage":
+            node["mode"] = 0 if image_path else 4
     response = requests.post(endpoint.rstrip("/") + "/workflow/convert", json=graph, timeout=90)
     if not response.ok:
         raise RuntimeError("ComfyUI UI-to-API conversion failed (" + str(response.status_code) + "): " + redact(response.text[:1000]))
