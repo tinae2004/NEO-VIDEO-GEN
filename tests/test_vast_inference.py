@@ -27,8 +27,14 @@ def test_accepts_full_verified_rentable_48gb_rtx_offer():
     assert result.gpu_vram_gb == 48.0
 
 
-def test_rejects_24gb_rtx_3090_for_ltx23_default_path():
-    assert quote_offer(offer(gpu_name="RTX 3090", gpu_ram=24000), model_download_gb=0.0) is None
+def test_accepts_24gb_rtx_3090_for_gguf_path():
+    result = quote_offer(offer(gpu_name="RTX 3090", gpu_ram=24000), model_download_gb=0.0)
+    assert result is not None
+    assert result.gpu_vram_gb == 24.0
+
+
+def test_rejects_gpu_below_24gb_gguf_path():
+    assert quote_offer(offer(gpu_name="RTX 3090", gpu_ram=23000), model_download_gb=0.0) is None
 
 
 def test_rejects_tesla():
@@ -57,4 +63,4 @@ def test_filter_returns_only_safe_rtx_offers():
         ],
         model_download_gb=0.0,
     )
-    assert [quote.offer_id for quote in quotes] == [1]
+    assert [quote.offer_id for quote in quotes] == [2, 1]
