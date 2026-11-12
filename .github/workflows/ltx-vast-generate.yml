@@ -8,21 +8,21 @@ on:
         required: true
         type: string
       workflow_path:
-        description: ComfyUI API-format workflow JSON committed in the repo
+        description: RTX 3090 GGUF distilled ComfyUI editor workflow
         required: true
-        default: workflows/ltx23_distilled_ui.json
+        default: workflows/ltx23_gguf_t2v_distilled_3090_ui.json
         type: string
       prompt_node_id:
-        description: Positive prompt node ID (official workflow default 2483)
+        description: Positive prompt node ID (RTX 3090 GGUF workflow default 4)
         required: true
-        default: "2483"
+        default: "4"
         type: string
       image_path:
         description: Optional start image committed in the repo
         required: false
         type: string
       image_node_id:
-        description: Optional image-loader node ID (official workflow default 2004)
+        description: Optional image-loader node ID (not used for this T2V workflow)
         required: false
         default: "2004"
         type: string
@@ -56,7 +56,7 @@ on:
         default: "0.30"
         type: string
       runtime_minutes:
-        description: GPU runtime cap (maximum 18 minutes)
+        description: GPU runtime cap (maximum 18 minutes; model files must be cached)
         required: true
         default: "18"
         type: string
