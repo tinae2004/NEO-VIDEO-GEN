@@ -10,19 +10,21 @@ on:
       workflow_path:
         description: ComfyUI API-format workflow JSON committed in the repo
         required: true
-        default: workflows/ltx23_api.json
+        default: workflows/ltx23_distilled_ui.json
         type: string
       prompt_node_id:
-        description: Positive prompt node ID from the workflow
+        description: Positive prompt node ID (official workflow default 2483)
         required: true
+        default: "2483"
         type: string
       image_path:
         description: Optional start image committed in the repo
         required: false
         type: string
       image_node_id:
-        description: Optional image-loader node ID
+        description: Optional image-loader node ID (official workflow default 2004)
         required: false
+        default: "2004"
         type: string
       volume_id:
         description: Existing Vast persistent volume ID mounted at /workspace
