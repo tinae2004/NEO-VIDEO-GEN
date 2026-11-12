@@ -86,7 +86,7 @@ jobs:
       - name: Validate source and safety tests before rental
         run: |
           python -m compileall -q app.py neo_video_gen scripts tests
-          pytest -q tests/test_vast_inference.py
+          PYTHONPATH="$GITHUB_WORKSPACE" pytest -q tests/test_vast_inference.py
       - name: Rent GPU and generate one LTX-2.3 video
         env:
           VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
@@ -124,7 +124,7 @@ jobs:
           if [[ -n "$VOLUME_ID" ]]; then
             args+=(--volume-id "$VOLUME_ID")
           fi
-          python -u -m scripts.run_ltx_vast "\${args[@]}"
+          python -u -m scripts.run_ltx_vast "${args[@]}"
       - name: Upload video and run diagnostics
         if: always()
         uses: actions/upload-artifact@v4
