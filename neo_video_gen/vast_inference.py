@@ -62,7 +62,7 @@ def quote_offer(
     offer: dict[str, Any], *, min_vram_gb: float = MIN_GPU_VRAM_GB,
     max_hourly_usd: float = MAX_HOURLY_USD, budget_usd: float = MAX_BUDGET_USD,
     runtime_minutes: float = MAX_RUNTIME_MINUTES, disk_gb: float = DEFAULT_DISK_GB,
-    model_download_gb: float = 55.0, output_upload_gb: float = 1.0,
+    model_download_gb: float = 0.0, output_upload_gb: float = 1.0,
     volume_hourly_usd: float = 0.0, contingency_usd: float = 0.25,
 ) -> OfferQuote | None:
     name = str(offer.get("gpu_name", "")).strip()
@@ -345,7 +345,7 @@ def _gpu_check(ssh_base: list[str], env: dict[str, str], min_vram_gb: float) -> 
         name, memory_mb = parts[0], number(parts[1], 0.0) or 0.0
         if "TESLA" in name.upper():
             raise RuntimeError("Tesla GPU detected; policy excludes Tesla")
-        if memory_mb < min_vram_gb * 1024:
+        if memory_mb < min_vram_gb * 1000:
             raise RuntimeError("Actual GPU VRAM below " + str(min_vram_gb) + "GB: " + row)
         names.append(name + " " + str(round(memory_mb / 1024, 1)) + "GiB")
     return "; ".join(names)
@@ -399,7 +399,7 @@ def run_ltx_inference(
     image_node_id: str | None = None, timeout_seconds: int = 600, require_audio: bool = True,
     budget_usd: float = MAX_BUDGET_USD, max_hourly_usd: float = MAX_HOURLY_USD,
     runtime_minutes: int = MAX_RUNTIME_MINUTES, min_vram_gb: float = MIN_GPU_VRAM_GB,
-    disk_gb: int = DEFAULT_DISK_GB, model_download_gb: float = 55.0,
+    disk_gb: int = DEFAULT_DISK_GB, model_download_gb: float = 0.0,
     output_upload_gb: float = 1.0, volume_hourly_usd: float = 0.0,
     volume_id: str | None = None, comfyui_root: str = "/workspace/ComfyUI",
     progress=print,
