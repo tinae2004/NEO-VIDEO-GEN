@@ -136,7 +136,17 @@ class VastClient:
             elif disk < disk_gb:
                 stats["disk_too_small"] += 1; reason = f"{disk:.0f}GB disk; need {disk_gb:.0f}GB"
             if reason:
-                if progress and i <= 40: progress(f"Reject {offer.get('id', '?')} ({name}): {reason}.")
+                if progress and i <= 40:
+                    progress(f"Reject {offer.get('id', '?')} ({name}): {reason}.")
+                    if reason == "not verified or not rentable":
+                        progress(
+                            f"  eligibility fields: verified={offer.get('verified', '<missing>')!r}, "
+                            f"verification={offer.get('verification', '<missing>')!r}, "
+                            f"vericode={offer.get('vericode', '<missing>')!r}, "
+                            f"rentable={offer.get('rentable', '<missing>')!r}, "
+                            f"rented={offer.get('rented', '<missing>')!r}, "
+                            f"gpu_frac={offer.get('gpu_frac', '<missing>')!r}"
+                        )
                 continue
             quote = self.quote_offer(offer, disk_gb=disk_gb, runtime_minutes=runtime_minutes,
                                      ingress_gb=ingress_gb, egress_gb=egress_gb)
