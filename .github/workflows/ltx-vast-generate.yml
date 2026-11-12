@@ -1,0 +1,135 @@
+name: NEO VIDEO GEN — LTX-2.3 Vast Inference
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: Video scene prompt including action, dialogue and sound
+        required: true
+        type: string
+      workflow_path:
+        description: ComfyUI API-format workflow JSON committed in the repo
+        required: true
+        default: workflows/ltx23_api.json
+        type: string
+      prompt_node_id:
+        description: Positive prompt node ID from the workflow
+        required: true
+        type: string
+      image_path:
+        description: Optional start image committed in the repo
+        required: false
+        type: string
+      image_node_id:
+        description: Optional image-loader node ID
+        required: false
+        type: string
+      volume_id:
+        description: Existing Vast persistent volume ID mounted at /workspace
+        required: false
+        type: string
+      comfyui_root:
+        description: ComfyUI folder on the image or attached volume
+        required: true
+        default: /workspace/ComfyUI
+        type: string
+      model_download_gb:
+        description: Models are expected to be cached; set nonzero only for real download traffic
+        required: true
+        default: "0"
+        type: string
+      volume_hourly_usd:
+        description: Actual hourly cost of the attached volume, if any
+        required: true
+        default: "0"
+        type: string
+      budget_usd:
+        description: Total budget cap (maximum 3 USD)
+        required: true
+        default: "3"
+        type: string
+      max_hourly_usd:
+        description: GPU hourly cap (maximum 0.30 USD)
+        required: true
+        default: "0.30"
+        type: string
+      runtime_minutes:
+        description: GPU runtime cap (maximum 18 minutes)
+        required: true
+        default: "18"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neo-ltx23-vast-inference
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout NEO VIDEO GEN
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-client ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install requests vastai pytest
+      - name: Validate source and safety tests before rental
+        run: |
+          python -m compileall -q app.py neo_video_gen scripts tests
+          pytest -q tests/test_vast_inference.py
+      - name: Rent GPU and generate one LTX-2.3 video
+        env:
+          VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PROMPT: ${{ inputs.prompt }}
+          WORKFLOW_PATH: ${{ inputs.workflow_path }}
+          PROMPT_NODE_ID: ${{ inputs.prompt_node_id }}
+          IMAGE_PATH: ${{ inputs.image_path }}
+          IMAGE_NODE_ID: ${{ inputs.image_node_id }}
+          VOLUME_ID: ${{ inputs.volume_id }}
+          COMFYUI_ROOT: ${{ inputs.comfyui_root }}
+          MODEL_DOWNLOAD_GB: ${{ inputs.model_download_gb }}
+          VOLUME_HOURLY_USD: ${{ inputs.volume_hourly_usd }}
+          BUDGET_USD: ${{ inputs.budget_usd }}
+          MAX_HOURLY_USD: ${{ inputs.max_hourly_usd }}
+          RUNTIME_MINUTES: ${{ inputs.runtime_minutes }}
+          PYTHONUNBUFFERED: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --workflow "$WORKFLOW_PATH"
+            --prompt "$PROMPT"
+            --prompt-node-id "$PROMPT_NODE_ID"
+            --budget-usd "$BUDGET_USD"
+            --max-hourly-usd "$MAX_HOURLY_USD"
+            --runtime-minutes "$RUNTIME_MINUTES"
+            --model-download-gb "$MODEL_DOWNLOAD_GB"
+            --volume-hourly-usd "$VOLUME_HOURLY_USD"
+            --comfyui-root "$COMFYUI_ROOT"
+          )
+          if [[ -n "$IMAGE_PATH" ]]; then
+            args+=(--image "$IMAGE_PATH" --image-node-id "$IMAGE_NODE_ID")
+          fi
+          if [[ -n "$VOLUME_ID" ]]; then
+            args+=(--volume-id "$VOLUME_ID")
+          fi
+          python -u -m scripts.run_ltx_vast "\${args[@]}"
+      - name: Upload video and run diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: neo-ltx23-inference-${{ github.run_id }}
+          path: outputs/
+          if-no-files-found: warn
+          retention-days: 14
