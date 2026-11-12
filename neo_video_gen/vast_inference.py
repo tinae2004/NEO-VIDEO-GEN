@@ -360,7 +360,7 @@ def _start_comfyui(ssh_base: list[str], env: dict[str, str], root: str) -> None:
         "mkdir -p \"$ROOT/custom_nodes\"; cd \"$ROOT/custom_nodes\"; "
         "clone_if_missing(){ if [ ! -d \"$1/.git\" ]; then git clone --depth 1 \"$2\" \"$1\"; fi; }; "
         "clone_if_missing ComfyUI-LTXVideo https://github.com/Lightricks/ComfyUI-LTXVideo.git; "
-        "clone_if_missing RES4LYF https://github.com/ClownsharkBatwing/RES4LYF.git; "
+        "clone_if_missing ClownSampler_Beta_Standalone https://github.com/RiverSide71/ClownSampler_Beta_Standalone.git; "
         "clone_if_missing comfyui-workflow-to-api-converter-endpoint https://github.com/SethRobinson/comfyui-workflow-to-api-converter-endpoint.git; "
         "if [ -f ComfyUI-LTXVideo/requirements.txt ]; then python3 -m pip install -r ComfyUI-LTXVideo/requirements.txt; fi; "
         "if curl -fsS http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then "
