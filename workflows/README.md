@@ -1,7 +1,27 @@
-# Official LTX-2.3 workflow
+# RTX 3090 / LTX-2.3 GGUF workflow
 
-NEO includes the upstream Lightricks **LTX-2.3 T2V/I2V single-stage distilled** workflow source at `ltx23_distilled_ui.json`. This is the ComfyUI editor graph, not API prompt JSON. The inference runner must convert it through ComfyUI's UI-to-API workflow converter before submitting it. The positive prompt node is `2483`; the optional image loader node is `2004`.
+NEO includes an RTX 3090-compatible LTX-2.3 GGUF distilled T2V graph at
+`ltx23_gguf_t2v_distilled_3090_ui.json`. Positive prompt node: `4`.
+The graph uses 960x544, 121 frames (about 5 seconds at 24fps), a Q4_0 GGUF
+video model, distilled LoRA, Gemma-3 text encoder, text projection, video VAE
+and audio VAE.
 
-The graph requires Lightricks `ComfyUI-LTXVideo` and RES4LYF's `ClownSampler_Beta`. It references the `ltx-2.3-22b-dev.safetensors` base checkpoint, the `ltx-2.3-22b-distilled-lora-384-1.1.safetensors` LoRA, `comfy_gemma_3_12B_it.safetensors`, and the LTX audio VAE. These weights must already be present on the ComfyUI image or attached volume; the short paid-run window must not be used to download tens of GB of model files.
+Required ComfyUI custom nodes:
+- Lightricks ComfyUI-LTXVideo
+- city96 ComfyUI-GGUF
+- The workflow-to-API converter endpoint used by the runner
 
-The workflow includes audio/video composition and SaveVideo nodes. Begin with a short, low-resolution test. This is a 22B base model plus distilled LoRA workflow, not a tiny standalone distilled checkpoint. Do not assume it fits an RTX 3090; the current 48GB minimum remains conservative until measured quantized/offload tests prove otherwise.
+**Important:** The RTX 3090 path is inference-only. It does not download the
+large model assets during the paid run. The following files must already exist
+in the matching ComfyUI model folders: `ltx-2.3-22b-dev-Q4_0.gguf`,
+`ltx-2.3-22b-distilled-1.1_lora-dynamic_fro09_avg_rank_111_bf16.safetensors`,
+`gemma-3-12b-it-ablit-norms-biproj-fp8mixed.safetensors`,
+`ltx-2-3-22b-text_encoder.safetensors`, `LTX23_video_vae_bf16.safetensors`,
+and `LTX23_audio_vae_bf16.safetensors`.
+
+The reported warm RTX 3090 example is about 94 seconds for 960x544x121 at
+8 steps. That is not an end-to-end rental guarantee; cold start, model loading,
+and output transfer add time. The runner keeps the $3 total estimate cap,
+$0.30/hour GPU cap, 18-minute runtime cap, 99% reliability, verified/rentable
+full-GPU and no-Tesla filters. If the cached model assets or required nodes are
+missing, the run must fail rather than silently download tens of GB.
