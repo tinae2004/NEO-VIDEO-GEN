@@ -74,7 +74,7 @@ class VastClient:
             disk = float(offer["disk_space"])
         except (KeyError, TypeError, ValueError):
             return None
-        if "TESLA" in name.upper() or ram < 24 or reliability < .99 or not verified or not rentable:
+        if "TESLA" in name.upper() or ram < 23.5 or reliability < .99 or not verified or not rentable:
             return None
         if gpu_count != 1 or gpu_frac < 1 or disk < disk_gb:
             return None
@@ -125,8 +125,8 @@ class VastClient:
             reason = None
             if "TESLA" in name.upper():
                 stats["tesla_excluded"] += 1; reason = "Tesla GPU excluded"
-            elif ram < 24:
-                stats["vram_too_low"] += 1; reason = f"{ram:.1f}GB VRAM; need 24GB+"
+            elif ram < 23.5:
+                stats["vram_too_low"] += 1; reason = f"{ram:.1f}GB VRAM; need 24GB-class"
             elif reliability < .99:
                 stats["reliability_low"] += 1; reason = f"reliability {reliability:.3f}; need 0.99+"
             elif not verified or not rentable:
