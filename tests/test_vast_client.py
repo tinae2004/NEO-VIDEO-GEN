@@ -1,26 +1,13 @@
-import json
-
 import pytest
-
 from neo_video_gen.vast_client import VastClient
 
 
 def eligible_offer(**overrides):
     offer = {
-        "id": 123,
-        "gpu_name": "RTX_3090",
-        "gpu_ram": 24576,
-        "reliability": 0.995,
-        "verification": "verified",
-        "rentable": True,
-        "num_gpus": 1,
-        "gpu_frac": 1.0,
-        "disk_space": 200,
-        "dph_base": 0.20,
-        "dph_total": 0.22,
-        "storage_cost": 0.10,
-        "inet_down_cost": 0.001,
-        "inet_up_cost": 0.002,
+        "id": 123, "gpu_name": "RTX_3090", "gpu_ram": 24576, "reliability": 0.995,
+        "verification": "verified", "rentable": True, "num_gpus": 1, "gpu_frac": 1.0,
+        "disk_space": 200, "dph_base": 0.20, "dph_total": 0.22, "storage_cost": 0.10,
+        "inet_down_cost": 0.001, "inet_up_cost": 0.002,
     }
     offer.update(overrides)
     return offer
@@ -34,25 +21,16 @@ def test_quote_accounts_for_compute_storage_and_bandwidth():
     assert quote.estimated_total_usd < 3.0
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"gpu_name": "Tesla_T4"},
-        {"gpu_name": "RTX 3080"},
-        {"verification": "deverified"},
-        {"rentable": False},
-        {"gpu_frac": 0.5},
-        {"reliability": 0.90},
-        {"gpu_ram": 16384},
-        {"disk_space": 50},
-        {"inet_down_cost": None},
-    ],
-)
+@pytest.mark.parametrize("overrides", [
+    {"gpu_name": "Tesla_T4"}, {"gpu_name": "RTX 3080"}, {"verification": "deverified"},
+    {"rentable": False}, {"gpu_frac": 0.5}, {"reliability": 0.90},
+    {"gpu_ram": 16384}, {"disk_space": 50}, {"inet_down_cost": None},
+])
 def test_rejects_ineligible_or_unpriced_offer(overrides):
     assert VastClient.quote_offer(eligible_offer(**overrides)) is None
 
 
-def test_normalizes_space_in_gpu_model_and_uses_vast_memory_units():
+def test_normalizes_gpu_model_and_memory_units():
     quote = VastClient.quote_offer(eligible_offer(gpu_name="RTX 3090"))
     assert quote is not None
     assert quote.hourly_rate_usd == 0.22
@@ -68,9 +46,11 @@ def test_budget_and_runtime_hard_limits():
 
 
 class FakeResponse:
+    status_code = 200
+    ok = True
+    text = ""
     def raise_for_status(self):
         return None
-
     def json(self):
         return {"offers": [eligible_offer()]}
 
@@ -78,24 +58,19 @@ class FakeResponse:
 class FakeSession:
     def __init__(self):
         self.headers = {}
-        self.body = None
+        self.params = None
         self.url = None
-
-    def post(self, url, json, timeout):
-        self.url = url
-        self.body = json
+    def get(self, url, params, timeout):
+        self.url, self.params = url, params
         return FakeResponse()
 
 
-def test_search_uses_current_vast_post_bundles_contract():
+def test_search_requests_broad_marketplace_without_gpu_or_price_filters():
     session = FakeSession()
     client = VastClient("test-key", session=session)
-    offers = client.search_model("RTX_3090")
+    offers = client.search_all_offers()
     assert offers[0]["id"] == 123
-    assert session.url.endswith("/bundles")
-    assert session.body["gpu_name"] == {"eq": "RTX_3090"}
-    assert session.body["gpu_ram"] == {"gte": 24000}
-    assert session.body["gpu_frac"] == {"eq": 1}
-    assert session.body["duration"] == {"gte": 1080}
-    assert session.body["allocated_storage"] == 100
-    assert session.body["type"] == "ondemand"
+    assert session.url.endswith("/bundles/")
+    assert "gpu_name" not in session.params["q"]
+    assert "gpu_ram" not in session.params["q"]
+    assert "dph_total" not in session.params["q"]
