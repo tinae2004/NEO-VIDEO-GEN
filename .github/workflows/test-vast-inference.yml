@@ -10,6 +10,8 @@ on:
       - 'tests/test_vast_inference.py'
       - 'tests/test_official_ltx_workflow.py'
       - 'workflows/ltx23_distilled_ui.json'
+      - 'workflows/ltx23_gguf_t2v_distilled_3090_ui.json'
+      - '.github/workflows/ltx-vast-generate.yml'
       - '.github/workflows/test-vast-inference.yml'
 
 permissions:
