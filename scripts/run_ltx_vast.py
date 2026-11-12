@@ -23,7 +23,7 @@ def main() -> int:
     parser.add_argument("--runtime-minutes", type=int, default=MAX_RUNTIME_MINUTES)
     parser.add_argument("--min-vram-gb", type=float, default=MIN_GPU_VRAM_GB)
     parser.add_argument("--disk-gb", type=int, default=100)
-    parser.add_argument("--model-download-gb", type=float, default=55.0)
+    parser.add_argument("--model-download-gb", type=float, default=0.0)
     parser.add_argument("--output-upload-gb", type=float, default=1.0)
     parser.add_argument("--volume-hourly-usd", type=float, default=0.0)
     parser.add_argument("--volume-id", default="")
