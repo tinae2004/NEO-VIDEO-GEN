@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: Video scene prompt including action, dialogue and sound
+        description: Video scene prompt
         required: true
+        default: "A beautiful adult woman walking hand in hand with a young boy through a lush green lawn, natural movement, warm daylight, cinematic tracking shot."
         type: string
       workflow_path:
         description: RTX 3090 GGUF distilled ComfyUI editor workflow
@@ -27,8 +28,8 @@ on:
         default: "2004"
         type: string
       volume_id:
-        description: Existing Vast persistent volume ID mounted at /workspace
-        required: false
+        description: REQUIRED existing Vast volume ID with all six LTX GGUF model files cached, mounted at /workspace
+        required: true
         type: string
       comfyui_root:
         description: ComfyUI folder on the image or attached volume
@@ -109,6 +110,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -z "$VOLUME_ID" ]]; then
+            echo "A prepared persistent Vast volume ID is required; refusing to rent an empty GPU."
+            exit 2
+          fi
           args=(
             --workflow "$WORKFLOW_PATH"
             --prompt "$PROMPT"
