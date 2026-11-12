@@ -1,0 +1,30 @@
+name: NEO LTX Inference Safety Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'neo_video_gen/vast_inference.py'
+      - 'neo_video_gen/diagnostics.py'
+      - 'scripts/run_ltx_vast.py'
+      - 'tests/test_vast_inference.py'
+      - '.github/workflows/test-vast-inference.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: python -m pip install requests pytest
+      - name: Compile source
+        run: python -m compileall -q app.py neo_video_gen scripts tests
+      - name: Test inference offer safeguards
+        run: pytest -q tests/test_vast_inference.py
