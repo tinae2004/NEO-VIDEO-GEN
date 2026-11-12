@@ -379,19 +379,49 @@ def _remote_logs(ssh_base: list[str] | None, env: dict[str, str]) -> str:
 
 def validate_api_workflow(path: Path, prompt_node_id: str, image_node_id: str | None, image_path: Path | None) -> str:
     if not path.is_file():
-        raise FileNotFoundError("ComfyUI API workflow JSON not found: " + str(path))
+        raise FileNotFoundError("ComfyUI workflow JSON not found: " + str(path))
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict) or not data:
-        raise ValueError("Workflow must be non-empty API-format JSON")
+        raise ValueError("Workflow must be a non-empty JSON object")
+    if isinstance(data.get("nodes"), list) and isinstance(data.get("links"), list):
+        nodes = {str(n.get("id")): n for n in data["nodes"] if isinstance(n, dict)}
+        prompt_node = nodes.get(str(prompt_node_id))
+        if not prompt_node or prompt_node.get("type") != "CLIPTextEncode":
+            raise ValueError("Positive prompt node ID must identify a CLIPTextEncode node")
+        if image_path:
+            image_node = nodes.get(str(image_node_id or ""))
+            if not image_node or image_node.get("type") != "LoadImage":
+                raise ValueError("Image node ID must identify a LoadImage node")
+        return json.dumps(data)
     for node in data.values():
-        if (not isinstance(node, dict) or not isinstance(node.get("class_type"), str)
-                or not isinstance(node.get("inputs"), dict)):
-            raise ValueError("Workflow must be ComfyUI API format (each node needs class_type and inputs)")
+        if not isinstance(node, dict) or not isinstance(node.get("class_type"), str) or not isinstance(node.get("inputs"), dict):
+            raise ValueError("Workflow must be ComfyUI API format or ComfyUI editor format")
     if prompt_node_id not in data:
-        raise ValueError("Prompt node ID is not present in the workflow")
+        raise ValueError("Prompt node ID is not present in the API workflow")
     if image_path and (not image_path.is_file() or not image_node_id or image_node_id not in data):
         raise ValueError("Valid start-image path and image-loader node ID are required for I2V")
     return json.dumps(data)
+
+
+def _convert_ui_workflow(endpoint: str, workflow_json: str, prompt_node_id: str,
+                         image_node_id: str | None, image_path: str | None) -> str:
+    graph = json.loads(workflow_json)
+    if not isinstance(graph, dict) or not isinstance(graph.get("nodes"), list):
+        return workflow_json
+    response = requests.post(endpoint.rstrip("/") + "/workflow/convert", json=graph, timeout=90)
+    if not response.ok:
+        raise RuntimeError("ComfyUI UI-to-API conversion failed (" + str(response.status_code) + "): " + redact(response.text[:1000]))
+    api = response.json()
+    if not isinstance(api, dict) or str(prompt_node_id) not in api:
+        raise RuntimeError("Converted API workflow is missing positive prompt node " + str(prompt_node_id))
+    inputs = api[str(prompt_node_id)].get("inputs", {})
+    if not any(isinstance(v, str) and k.lower() in {"text", "prompt"} for k, v in inputs.items()):
+        raise RuntimeError("Converted positive prompt node has no text input")
+    if image_path:
+        image_id = str(image_node_id or "")
+        if image_id not in api or "image" not in api[image_id].get("inputs", {}):
+            raise RuntimeError("Converted image loader has no image input")
+    return json.dumps(api)
 
 
 def run_ltx_inference(
@@ -503,9 +533,11 @@ def run_ltx_inference(
         if remaining < 60:
             raise TimeoutError("Less than 60 seconds remain inside the runtime cap")
         generation_timeout = min(timeout_seconds, remaining)
+        log("Converting official LTX-2.3 editor graph to ComfyUI API prompt.")
+        api_workflow = _convert_ui_workflow(endpoint, workflow, prompt_node_id, image_node_id, image_path)
         log("Submitting one ComfyUI job; timeout=" + str(generation_timeout) + "s.")
         output_path = generate_video(
-            endpoint, workflow, prompt, prompt_node_id, image_path, image_node_id,
+            endpoint, api_workflow, prompt, prompt_node_id, image_path, image_node_id,
             generation_timeout, require_audio)
         log("Video generated: " + output_path)
 
