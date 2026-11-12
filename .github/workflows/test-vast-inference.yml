@@ -27,4 +27,4 @@ jobs:
       - name: Compile source
         run: python -m compileall -q app.py neo_video_gen scripts tests
       - name: Test inference offer safeguards
-        run: pytest -q tests/test_vast_inference.py
+        run: PYTHONPATH="$GITHUB_WORKSPACE" pytest -q tests/test_vast_inference.py
