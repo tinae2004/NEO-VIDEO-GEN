@@ -352,18 +352,30 @@ def _gpu_check(ssh_base: list[str], env: dict[str, str], min_vram_gb: float) -> 
 
 
 def _start_comfyui(ssh_base: list[str], env: dict[str, str], root: str) -> None:
+    # Install only workflow runtime node packs and the UI-to-API converter.
+    # Model weights are never downloaded in this short paid session.
     script = (
-        "set -euo pipefail; mkdir -p /workspace; ROOT=" + shlex.quote(root) + "; "
+        "set -euo pipefail; ROOT=" + shlex.quote(root) + "; "
         "test -f \"$ROOT/main.py\" || { echo 'ComfyUI main.py missing at '\"$ROOT\"; exit 31; }; "
-        "if ! curl -fsS http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then "
-        "cd \"$ROOT\"; nohup python3 main.py --listen 127.0.0.1 --port 8188 "
-        "> /workspace/neo-comfyui.log 2>&1 < /dev/null & fi; "
-        "for i in $(seq 1 60); do "
+        "mkdir -p \"$ROOT/custom_nodes\"; cd \"$ROOT/custom_nodes\"; "
+        "clone_if_missing(){ if [ ! -d \"$1/.git\" ]; then git clone --depth 1 \"$2\" \"$1\"; fi; }; "
+        "clone_if_missing ComfyUI-LTXVideo https://github.com/Lightricks/ComfyUI-LTXVideo.git; "
+        "clone_if_missing RES4LYF https://github.com/ClownsharkBatwing/RES4LYF.git; "
+        "clone_if_missing comfyui-workflow-to-api-converter-endpoint https://github.com/SethRobinson/comfyui-workflow-to-api-converter-endpoint.git; "
+        "if [ -f ComfyUI-LTXVideo/requirements.txt ]; then python3 -m pip install -r ComfyUI-LTXVideo/requirements.txt; fi; "
         "if curl -fsS http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then "
-        "echo 'ComfyUI API ready'; exit 0; fi; sleep 2; done; "
-        "tail -n 120 /workspace/neo-comfyui.log 2>/dev/null || true; exit 32"
+        "pkill -f 'python3 main.py.*--port 8188' || true; sleep 3; fi; "
+        "cd \"$ROOT\"; nohup python3 main.py --listen 127.0.0.1 --port 8188 "
+        "> /workspace/neo-comfyui.log 2>&1 < /dev/null & "
+        "for i in $(seq 1 75); do "
+        "if curl -fsS http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then break; fi; sleep 2; done; "
+        "curl -fsS http://127.0.0.1:8188/system_stats >/dev/null || "
+        "{ tail -n 120 /workspace/neo-comfyui.log 2>/dev/null || true; exit 32; }; "
+        "curl -fsS http://127.0.0.1:8188/workflow/convert >/dev/null || "
+        "{ echo 'ComfyUI UI-to-API converter route is missing'; tail -n 120 /workspace/neo-comfyui.log; exit 33; }; "
+        "echo 'ComfyUI API and workflow converter are ready'"
     )
-    _remote(ssh_base, script, env, 150)
+    _remote(ssh_base, script, env, 360)
 
 
 def _remote_logs(ssh_base: list[str] | None, env: dict[str, str]) -> str:
